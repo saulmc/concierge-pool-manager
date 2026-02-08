@@ -1,4 +1,4 @@
-import { sql } from "@vercel/postgres";
+import { sql } from "./connection.js";
 
 export async function insertInstance({ id, railwayServiceId }) {
   await sql`
