@@ -457,6 +457,24 @@ app.get("/", (_req, res) => {
       color: #999;
       font-size: 14px;
     }
+
+    @media (max-width: 540px) {
+      body { padding: 16px; }
+
+      .pool-bar {
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .pool-bar-left {
+        flex-wrap: wrap;
+        width: 100%;
+      }
+
+      .pool-bar-right {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
