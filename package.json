@@ -6,10 +6,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "node --watch src/index.js",
-    "start": "node src/index.js",
-    "test": "node --test src/**/*.test.js",
-    "db:migrate": "node src/db/migrate.js"
+    "dev": "node --env-file=.env --watch src/index.js",
+    "start": "node --env-file=.env src/index.js",
+    "test": "node --env-file=.env --test src/**/*.test.js",
+    "db:migrate": "node --env-file=.env src/db/migrate.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",

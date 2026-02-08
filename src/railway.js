@@ -8,7 +8,7 @@ async function gql(query, variables = {}) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+      "Project-Access-Token": token,
     },
     body: JSON.stringify({ query, variables }),
   });

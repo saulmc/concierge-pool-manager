@@ -38,7 +38,7 @@ export async function createInstance() {
   console.log(`[pool]   Domain: ${url}`);
 
   // 4. Insert into DB as 'provisioning'
-  await db.insertInstance({ id, railwayServiceId: serviceId });
+  await db.insertInstance({ id, railwayServiceId: serviceId, railwayUrl: url });
   console.log(`[pool]   Registered as provisioning`);
 
   return { id, serviceId, url, name };

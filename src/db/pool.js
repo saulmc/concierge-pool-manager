@@ -1,9 +1,9 @@
 import { sql } from "./connection.js";
 
-export async function insertInstance({ id, railwayServiceId }) {
+export async function insertInstance({ id, railwayServiceId, railwayUrl }) {
   await sql`
-    INSERT INTO pool_instances (id, railway_service_id, status)
-    VALUES (${id}, ${railwayServiceId}, 'provisioning')
+    INSERT INTO pool_instances (id, railway_service_id, railway_url, status)
+    VALUES (${id}, ${railwayServiceId}, ${railwayUrl}, 'provisioning')
   `;
 }
 
