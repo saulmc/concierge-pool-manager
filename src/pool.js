@@ -6,6 +6,11 @@ const POOL_API_KEY = process.env.POOL_API_KEY;
 const MIN_IDLE = parseInt(process.env.POOL_MIN_IDLE || "3", 10);
 const MAX_TOTAL = parseInt(process.env.POOL_MAX_TOTAL || "10", 10);
 
+function defaultLinkPrefix() {
+  const env = process.env.INSTANCE_XMTP_ENV || "dev";
+  return env === "production" ? "https://convos.org" : "https://dev.convos.org";
+}
+
 function instanceEnvVars() {
   return {
     POOL_MODE: "true",
@@ -13,7 +18,7 @@ function instanceEnvVars() {
     POOL_AUTH_CHOICE: process.env.POOL_AUTH_CHOICE || "apiKey",
     ANTHROPIC_API_KEY: process.env.INSTANCE_ANTHROPIC_API_KEY || "",
     XMTP_ENV: process.env.INSTANCE_XMTP_ENV || "dev",
-    LINK_PREFIX: process.env.INSTANCE_LINK_PREFIX || "https://dev.convos.org",
+    LINK_PREFIX: process.env.INSTANCE_LINK_PREFIX || defaultLinkPrefix(),
     SETUP_PASSWORD: process.env.INSTANCE_SETUP_PASSWORD || "pool-managed",
     PORT: "8080",
   };
