@@ -23,6 +23,16 @@ function requireAuth(req, res, next) {
 
 app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
+// Pool counts (no auth — used by the claim form)
+app.get("/api/pool/counts", async (_req, res) => {
+  try {
+    const counts = await db.countByStatus();
+    res.json(counts);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Simple claim form
 app.get("/", (_req, res) => {
   res.type("html").send(`<!DOCTYPE html>
@@ -34,6 +44,14 @@ app.get("/", (_req, res) => {
   body{font-family:system-ui,sans-serif;background:#0f0f0f;color:#e0e0e0;min-height:100vh;display:flex;align-items:center;justify-content:center}
   .card{background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:2rem;width:100%;max-width:480px}
   h1{font-size:1.25rem;margin-bottom:1.5rem;color:#fff}
+  .status{display:flex;gap:.75rem;margin-bottom:1.5rem}
+  .pill{flex:1;text-align:center;padding:.5rem;border-radius:8px;background:#111;border:1px solid #333}
+  .pill .num{font-size:1.5rem;font-weight:700;color:#fff}
+  .pill .lbl{font-size:.7rem;color:#888;text-transform:uppercase;letter-spacing:.05em}
+  .pill.idle .num{color:#4ade80}
+  .pill.provisioning .num{color:#facc15}
+  .pill.claimed .num{color:#60a5fa}
+  .unavailable{text-align:center;padding:1rem;color:#888;font-size:.875rem}
   label{display:block;font-size:.875rem;color:#aaa;margin-bottom:.375rem}
   input,textarea{width:100%;padding:.625rem;background:#111;border:1px solid #333;border-radius:6px;color:#fff;font:inherit;margin-bottom:1rem}
   textarea{resize:vertical;min-height:100px}
@@ -49,21 +67,45 @@ app.get("/", (_req, res) => {
 </style>
 </head><body>
 <div class="card">
-  <h1>Claim a Convos Agent</h1>
+  <h1>Convos Agent Pool</h1>
+  <div class="status">
+    <div class="pill idle"><div class="num" id="s-idle">-</div><div class="lbl">Idle</div></div>
+    <div class="pill provisioning"><div class="num" id="s-prov">-</div><div class="lbl">Starting</div></div>
+    <div class="pill claimed"><div class="num" id="s-claim">-</div><div class="lbl">Claimed</div></div>
+  </div>
+  <div id="unavailable" class="unavailable" style="display:none">No idle instances available. Waiting for instances to start...</div>
   <form id="f">
     <label for="name">Name</label>
     <input id="name" name="name" placeholder="e.g. tokyo-trip-planner" required>
     <label for="instructions">Instructions</label>
     <textarea id="instructions" name="instructions" placeholder="You are a helpful trip planner for Tokyo..." required></textarea>
-    <button type="submit" id="btn">Claim Instance</button>
+    <button type="submit" id="btn" disabled>Claim Instance</button>
   </form>
   <div class="result" id="result"></div>
 </div>
 <script>
 const f=document.getElementById('f'),btn=document.getElementById('btn'),result=document.getElementById('result');
+const sIdle=document.getElementById('s-idle'),sProv=document.getElementById('s-prov'),sClaim=document.getElementById('s-claim');
+const unavail=document.getElementById('unavailable');
+let claiming=false;
+
+async function refreshStatus(){
+  try{
+    const res=await fetch('/api/pool/counts');
+    const c=await res.json();
+    sIdle.textContent=c.idle;sProv.textContent=c.provisioning;sClaim.textContent=c.claimed;
+    if(!claiming){
+      if(c.idle>0){btn.disabled=false;unavail.style.display='none';f.style.display='block'}
+      else{btn.disabled=true;unavail.style.display='block'}
+    }
+  }catch{}
+}
+refreshStatus();
+setInterval(refreshStatus,10000);
+
 f.onsubmit=async e=>{
   e.preventDefault();
-  btn.disabled=true;btn.textContent='Claiming...';result.style.display='none';
+  claiming=true;btn.disabled=true;btn.textContent='Claiming...';result.style.display='none';
   try{
     const res=await fetch('/api/pool/claim',{
       method:'POST',
@@ -80,7 +122,7 @@ f.onsubmit=async e=>{
   }catch(err){
     result.innerHTML='<div class="error">'+err.message+'</div>';
     result.style.display='block';
-  }finally{btn.disabled=false;btn.textContent='Claim Instance'}
+  }finally{claiming=false;btn.textContent='Claim Instance';refreshStatus()}
 };
 </script>
 </body></html>`);
