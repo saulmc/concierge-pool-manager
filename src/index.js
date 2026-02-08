@@ -23,6 +23,10 @@ function requireAuth(req, res, next) {
 
 app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
+// Version — check this to verify what code is deployed.
+const BUILD_VERSION = "2026-02-08T23:pool-v2";
+app.get("/version", (_req, res) => res.json({ version: BUILD_VERSION }));
+
 // Pool counts (no auth — used by the launch form)
 app.get("/api/pool/counts", async (_req, res) => {
   try {

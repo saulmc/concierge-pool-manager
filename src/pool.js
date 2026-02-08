@@ -115,16 +115,18 @@ export async function provision(agentId, instructions) {
   const instance = await db.claimOne(agentId);
   if (!instance) return null;
 
-  console.log(`[pool] Launching ${instance.id} for ${agentId}`);
+  console.log(`[pool] Launching ${instance.id} for agentId="${agentId}"`);
 
   // 2. Call /pool/provision on the instance
+  const provisionBody = { instructions, name: agentId };
+  console.log(`[pool] POST ${instance.railway_url}/pool/provision name="${provisionBody.name}"`);
   const res = await fetch(`${instance.railway_url}/pool/provision`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${POOL_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ instructions, name: agentId }),
+    body: JSON.stringify(provisionBody),
   });
 
   if (!res.ok) {
