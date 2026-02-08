@@ -134,10 +134,11 @@ export async function provision(agentId, instructions) {
 
   const result = await res.json();
 
-  // 3. Store the invite URL and conversation ID
+  // 3. Store the invite URL, conversation ID, and instructions
   await db.setClaimed(instance.id, {
     inviteUrl: result.inviteUrl,
     conversationId: result.conversationId,
+    instructions,
   });
 
   // 4. Rename the Railway service so it's identifiable in the dashboard
@@ -159,6 +160,28 @@ export async function provision(agentId, instructions) {
     conversationId: result.conversationId,
     instanceId: instance.id,
   };
+}
+
+// Kill a claimed instance — delete from Railway and remove from DB.
+export async function killInstance(id) {
+  const instances = await db.listAll();
+  const inst = instances.find((i) => i.id === id);
+  if (!inst) throw new Error(`Instance ${id} not found`);
+
+  console.log(`[pool] Killing instance ${inst.id} (${inst.claimed_by})`);
+
+  try {
+    await railway.deleteService(inst.railway_service_id);
+    console.log(`[pool]   Railway service deleted`);
+  } catch (err) {
+    console.warn(`[pool]   Failed to delete Railway service:`, err.message);
+  }
+
+  await db.deleteInstance(id);
+  console.log(`[pool]   Removed from DB`);
+
+  // Trigger backfill
+  replenish().catch((err) => console.error("[pool] Backfill error:", err));
 }
 
 // Run a single replenish + poll cycle.

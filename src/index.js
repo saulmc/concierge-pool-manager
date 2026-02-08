@@ -33,7 +33,28 @@ app.get("/api/pool/counts", async (_req, res) => {
   }
 });
 
-// Simple claim form
+// List claimed agents (no auth — used by the page)
+app.get("/api/pool/agents", async (_req, res) => {
+  try {
+    const agents = await db.listClaimed();
+    res.json(agents);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Kill a claimed instance
+app.delete("/api/pool/instances/:id", requireAuth, async (req, res) => {
+  try {
+    await pool.killInstance(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[api] Kill failed:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Dashboard page
 app.get("/", (_req, res) => {
   res.type("html").send(`<!doctype html>
 <html lang="en">
@@ -57,7 +78,7 @@ app.get("/", (_req, res) => {
     }
 
     .container {
-      max-width: 520px;
+      max-width: 640px;
       width: 100%;
       margin: 0 auto;
     }
@@ -107,6 +128,7 @@ app.get("/", (_req, res) => {
       border: 1px solid #EBEBEB;
       border-radius: 24px;
       padding: 32px;
+      margin-bottom: 16px;
     }
 
     .card h3 {
@@ -128,9 +150,7 @@ app.get("/", (_req, res) => {
       margin: 0 auto 12px;
     }
 
-    .setting-group {
-      margin-bottom: 20px;
-    }
+    .setting-group { margin-bottom: 20px; }
 
     .setting-label {
       display: block;
@@ -152,19 +172,9 @@ app.get("/", (_req, res) => {
       transition: all 0.2s ease;
     }
 
-    .setting-input:focus {
-      outline: none;
-      border-color: #000;
-    }
-
-    .setting-input::placeholder {
-      color: #B2B2B2;
-    }
-
-    textarea.setting-input {
-      resize: vertical;
-      min-height: 100px;
-    }
+    .setting-input:focus { outline: none; border-color: #000; }
+    .setting-input::placeholder { color: #B2B2B2; }
+    textarea.setting-input { resize: vertical; min-height: 80px; }
 
     .btn-primary {
       background: #FC4F37;
@@ -185,84 +195,33 @@ app.get("/", (_req, res) => {
     .btn-primary:active { transform: scale(0.98); }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    .result-card {
-      margin-top: 24px;
-      background: #FFF;
-      border: 1px solid #EBEBEB;
-      border-radius: 24px;
-      padding: 32px;
-      display: none;
-    }
-
-    .result-card h3 {
-      font-size: 16px;
-      font-weight: 700;
-      margin-bottom: 20px;
-      letter-spacing: -0.08px;
-      color: #34C759;
-    }
-
-    .qr-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .qr-container img {
-      border-radius: 16px;
-      width: 256px;
-      height: 256px;
-    }
-
-    .qr-info {
-      margin-top: 24px;
-      padding: 16px 20px;
+    .btn-secondary {
       background: #F5F5F5;
-      border-radius: 16px;
-      width: 100%;
-      max-width: 300px;
-    }
-
-    .qr-info-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid #EBEBEB;
-    }
-
-    .qr-info-row:last-child { border-bottom: none; }
-
-    .qr-info-label {
-      font-size: 12px;
-      color: #666;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .qr-info-value {
+      color: #000;
+      border: none;
+      border-radius: 12px;
+      padding: 10px 16px;
       font-size: 14px;
       font-weight: 500;
-      color: #000;
-    }
-
-    .invite-url {
-      margin-top: 16px;
-      padding: 12px 16px;
-      background: #F5F5F5;
-      border-radius: 12px;
-      font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
-      font-size: 11px;
-      word-break: break-all;
-      color: #666;
       cursor: pointer;
-      transition: background 0.2s;
-      width: 100%;
-      max-width: 300px;
-      text-align: center;
+      transition: all 0.2s ease;
     }
 
-    .invite-url:hover { background: #EBEBEB; }
+    .btn-secondary:hover { background: #EBEBEB; }
+
+    .btn-danger {
+      background: #FEE2E2;
+      color: #DC2626;
+      border: none;
+      border-radius: 12px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-danger:hover { background: #FECACA; }
 
     .error-message {
       color: #DC2626;
@@ -272,6 +231,126 @@ app.get("/", (_req, res) => {
       background: #FEE2E2;
       border-radius: 12px;
       display: none;
+    }
+
+    /* Agent feed */
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 32px 0 16px;
+    }
+
+    .agent-card {
+      background: #FFF;
+      border: 1px solid #EBEBEB;
+      border-radius: 24px;
+      padding: 24px 28px;
+      margin-bottom: 12px;
+    }
+
+    .agent-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .agent-name {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.08px;
+    }
+
+    .agent-uptime {
+      font-size: 13px;
+      color: #999;
+      font-weight: 500;
+    }
+
+    .agent-instructions {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.5;
+      margin-bottom: 16px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .agent-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* QR modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: #FFF;
+      border-radius: 24px;
+      padding: 32px;
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+    }
+
+    .modal h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      letter-spacing: -0.08px;
+    }
+
+    .modal img {
+      border-radius: 16px;
+      width: 256px;
+      height: 256px;
+      margin: 0 auto;
+      display: block;
+    }
+
+    .modal .invite-url {
+      margin: 16px auto 0;
+      padding: 12px 16px;
+      background: #F5F5F5;
+      border-radius: 12px;
+      font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+      font-size: 11px;
+      word-break: break-all;
+      color: #666;
+      cursor: pointer;
+      transition: background 0.2s;
+      max-width: 300px;
+    }
+
+    .modal .invite-url:hover { background: #EBEBEB; }
+
+    .modal .btn-secondary {
+      margin-top: 20px;
+      width: 100%;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 16px;
+      color: #999;
+      font-size: 14px;
     }
   </style>
 </head>
@@ -308,50 +387,57 @@ app.get("/", (_req, res) => {
         <button type="submit" id="btn" class="btn-primary" disabled>Claim Instance</button>
       </form>
     </div>
+    <div class="error-message" id="error"></div>
 
-    <div class="result-card" id="result">
-      <h3>Agent Claimed</h3>
-      <div class="qr-container">
-        <img id="result-qr" alt="Scan to connect" />
-        <div class="qr-info">
-          <div class="qr-info-row">
-            <span class="qr-info-label">Agent</span>
-            <span class="qr-info-value" id="result-agent"></span>
-          </div>
-          <div class="qr-info-row">
-            <span class="qr-info-label">Instance</span>
-            <span class="qr-info-value" id="result-instance"></span>
-          </div>
-        </div>
-        <div class="invite-url" id="result-invite" onclick="copyInvite(this)" title="Click to copy"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:32px 0 16px">
+      <span class="section-title" style="margin:0">Active Agents</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="replenish-count" type="number" min="1" max="20" value="3" class="setting-input" style="width:60px;padding:8px 12px;font-size:13px;text-align:center" />
+        <button class="btn-secondary" id="replenish-btn">Add Agents</button>
       </div>
     </div>
-    <div class="error-message" id="error"></div>
+    <div id="feed"></div>
+  </div>
+
+  <div class="modal-overlay" id="qr-modal">
+    <div class="modal">
+      <h3 id="modal-title">QR Code</h3>
+      <img id="modal-qr" alt="Scan to connect" />
+      <div class="invite-url" id="modal-invite" onclick="copyText(this)" title="Click to copy"></div>
+      <button class="btn-secondary" onclick="closeModal()">Close</button>
+    </div>
   </div>
 
   <script>
-    function copyInvite(el){
-      var text=el.textContent.trim();
-      navigator.clipboard.writeText(text).then(function(){
-        var original=el.textContent;
-        el.textContent='Copied!';
-        el.style.background='#D4EDDA';el.style.color='#155724';
-        setTimeout(function(){el.textContent=original;el.style.background='';el.style.color='';},1500);
+    const API_KEY='${POOL_API_KEY}';
+    const authHeaders={'Authorization':'Bearer '+API_KEY,'Content-Type':'application/json'};
+
+    function copyText(el){
+      navigator.clipboard.writeText(el.textContent.trim()).then(function(){
+        var orig=el.textContent;
+        el.textContent='Copied!';el.style.background='#D4EDDA';el.style.color='#155724';
+        setTimeout(function(){el.textContent=orig;el.style.background='';el.style.color='';},1500);
       });
     }
 
-    const f=document.getElementById('f'),btn=document.getElementById('btn');
-    const resultCard=document.getElementById('result'),errorEl=document.getElementById('error');
-    const resultQr=document.getElementById('result-qr'),resultAgent=document.getElementById('result-agent');
-    const resultInstance=document.getElementById('result-instance'),resultInvite=document.getElementById('result-invite');
+    function timeAgo(dateStr){
+      var ms=Date.now()-new Date(dateStr).getTime();
+      var s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60),d=Math.floor(h/24);
+      if(d>0)return d+'d '+h%24+'h';
+      if(h>0)return h+'h '+m%60+'m';
+      if(m>0)return m+'m';
+      return '<1m';
+    }
+
+    // Status pills
     const sIdle=document.getElementById('s-idle'),sProv=document.getElementById('s-prov'),sClaim=document.getElementById('s-claim');
-    const unavail=document.getElementById('unavailable');
+    const unavail=document.getElementById('unavailable'),btn=document.getElementById('btn');
     let claiming=false;
 
     async function refreshStatus(){
       try{
-        const res=await fetch('/api/pool/counts');
-        const c=await res.json();
+        var res=await fetch('/api/pool/counts');
+        var c=await res.json();
         sIdle.textContent=c.idle;sProv.textContent=c.provisioning;sClaim.textContent=c.claimed;
         if(!claiming){
           if(c.idle>0){btn.disabled=false;unavail.style.display='none'}
@@ -359,31 +445,126 @@ app.get("/", (_req, res) => {
         }
       }catch{}
     }
-    refreshStatus();
-    setInterval(refreshStatus,10000);
 
-    f.onsubmit=async e=>{
-      e.preventDefault();
-      claiming=true;btn.disabled=true;btn.textContent='Claiming...';
-      resultCard.style.display='none';errorEl.style.display='none';
+    // Agent feed
+    const feed=document.getElementById('feed');
+    var agentsCache=[];
+
+    async function refreshFeed(){
       try{
-        const res=await fetch('/api/pool/claim',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer ${POOL_API_KEY}'},
-          body:JSON.stringify({agentId:f.name.value.trim(),instructions:f.instructions.value.trim()})
+        var res=await fetch('/api/pool/agents');
+        agentsCache=await res.json();
+        renderFeed();
+      }catch{}
+    }
+
+    function renderFeed(){
+      if(!agentsCache.length){
+        feed.innerHTML='<div class="empty-state">No active agents yet. Claim one above.</div>';
+        return;
+      }
+      feed.innerHTML=agentsCache.map(function(a){
+        var name=(a.claimed_by||a.id).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+        var instr=(a.instructions||'No instructions').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+        return '<div class="agent-card" id="agent-'+a.id+'">'+
+          '<div class="agent-header">'+
+            '<span class="agent-name">'+name+'</span>'+
+            '<span class="agent-uptime">'+timeAgo(a.claimed_at)+'</span>'+
+          '</div>'+
+          '<div class="agent-instructions">'+instr+'</div>'+
+          '<div class="agent-actions">'+
+            '<button class="btn-secondary" data-qr="'+a.id+'">Show QR</button>'+
+            '<button class="btn-danger" data-kill="'+a.id+'">Kill</button>'+
+          '</div>'+
+        '</div>';
+      }).join('');
+    }
+
+    // Event delegation for agent actions
+    feed.onclick=function(e){
+      var qrId=e.target.getAttribute('data-qr');
+      if(qrId){
+        var a=agentsCache.find(function(x){return x.id===qrId;});
+        if(a)showQr(a.claimed_by||a.id,a.invite_url||'');
+        return;
+      }
+      var killId=e.target.getAttribute('data-kill');
+      if(killId){
+        var a2=agentsCache.find(function(x){return x.id===killId;});
+        if(a2)killAgent(a2.id,a2.claimed_by||a2.id);
+      }
+    };
+
+    // QR modal
+    var modal=document.getElementById('qr-modal');
+    function showQr(name,url){
+      document.getElementById('modal-title').textContent=name;
+      // Generate QR via a free API
+      document.getElementById('modal-qr').src='https://api.qrserver.com/v1/create-qr-code/?size=256x256&data='+encodeURIComponent(url);
+      document.getElementById('modal-invite').textContent=url;
+      modal.classList.add('active');
+    }
+    function closeModal(){modal.classList.remove('active');}
+    modal.onclick=function(e){if(e.target===modal)closeModal();};
+
+    // Kill agent
+    async function killAgent(id,name){
+      if(!confirm('Are you sure you want to kill "'+name+'"? This will delete the Railway service permanently.'))return;
+      var card=document.getElementById('agent-'+id);
+      if(card)card.style.opacity='0.5';
+      try{
+        var res=await fetch('/api/pool/instances/'+id,{method:'DELETE',headers:authHeaders});
+        var data=await res.json();
+        if(!res.ok)throw new Error(data.error||'Kill failed');
+        refreshFeed();refreshStatus();
+      }catch(err){
+        alert('Failed to kill: '+err.message);
+        if(card)card.style.opacity='1';
+      }
+    }
+
+    // Claim form
+    var f=document.getElementById('f'),errorEl=document.getElementById('error');
+    f.onsubmit=async function(e){
+      e.preventDefault();
+      var agentName=f.name.value.trim();
+      claiming=true;btn.disabled=true;btn.textContent='Claiming...';errorEl.style.display='none';
+      try{
+        var res=await fetch('/api/pool/claim',{method:'POST',headers:authHeaders,
+          body:JSON.stringify({agentId:agentName,instructions:f.instructions.value.trim()})
         });
-        const data=await res.json();
+        var data=await res.json();
         if(!res.ok)throw new Error(data.error||'Claim failed');
-        resultQr.src=data.qrDataUrl;
-        resultAgent.textContent=f.name.value.trim();
-        resultInstance.textContent=data.instanceId;
-        resultInvite.textContent=data.inviteUrl;
-        resultCard.style.display='block';
+        f.reset();
+        showQr(agentName||data.instanceId,data.inviteUrl);
+        refreshFeed();
       }catch(err){
         errorEl.textContent=err.message;
         errorEl.style.display='block';
-      }finally{claiming=false;btn.textContent='Claim Instance';refreshStatus()}
+      }finally{claiming=false;btn.textContent='Claim Instance';refreshStatus();}
     };
+
+    // Replenish
+    var replenishBtn=document.getElementById('replenish-btn');
+    var replenishCount=document.getElementById('replenish-count');
+    replenishBtn.onclick=async function(){
+      var n=parseInt(replenishCount.value)||3;
+      replenishBtn.disabled=true;replenishBtn.textContent='Creating '+n+'...';
+      try{
+        var res=await fetch('/api/pool/replenish',{method:'POST',headers:authHeaders,
+          body:JSON.stringify({count:n})
+        });
+        var data=await res.json();
+        if(!res.ok)throw new Error(data.error||'Failed');
+        refreshStatus();
+      }catch(err){
+        alert('Replenish failed: '+err.message);
+      }finally{replenishBtn.disabled=false;replenishBtn.textContent='Add Agents';}
+    };
+
+    // Initial load + polling
+    refreshStatus();refreshFeed();
+    setInterval(function(){refreshStatus();refreshFeed();},15000);
   </script>
 </body>
 </html>`);
@@ -440,9 +621,23 @@ app.get("/api/pool/setup", requireAuth, async (_req, res) => {
   }
 });
 
-// Manually trigger a replenish cycle
-app.post("/api/pool/replenish", requireAuth, async (_req, res) => {
+// Manually trigger a replenish cycle, optionally creating N instances
+app.post("/api/pool/replenish", requireAuth, async (req, res) => {
   try {
+    const count = Math.min(parseInt(req.body?.count) || 0, 20);
+    if (count > 0) {
+      const results = [];
+      for (let i = 0; i < count; i++) {
+        try {
+          const inst = await pool.createInstance();
+          results.push(inst);
+        } catch (err) {
+          console.error(`[pool] Failed to create instance:`, err);
+        }
+      }
+      const counts = await db.countByStatus();
+      return res.json({ ok: true, created: results.length, counts });
+    }
     await pool.tick();
     const counts = await db.countByStatus();
     res.json({ ok: true, counts });

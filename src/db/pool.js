@@ -35,14 +35,24 @@ export async function claimOne(agentId) {
   return result.rows[0] || null;
 }
 
-export async function setClaimed(id, { inviteUrl, conversationId }) {
+export async function setClaimed(id, { inviteUrl, conversationId, instructions }) {
   await sql`
     UPDATE pool_instances
     SET invite_url = ${inviteUrl},
         conversation_id = ${conversationId},
+        instructions = ${instructions || null},
         updated_at = NOW()
     WHERE id = ${id}
   `;
+}
+
+export async function listClaimed() {
+  const result = await sql`
+    SELECT * FROM pool_instances
+    WHERE status = 'claimed'
+    ORDER BY claimed_at DESC
+  `;
+  return result.rows;
 }
 
 export async function countByStatus() {
