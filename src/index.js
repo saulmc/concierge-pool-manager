@@ -929,6 +929,18 @@ app.post("/api/pool/replenish", requireAuth, async (req, res) => {
   }
 });
 
+// Manually trigger reconciliation — verify DB against Railway and clean up orphans
+app.post("/api/pool/reconcile", requireAuth, async (_req, res) => {
+  try {
+    const cleaned = await pool.reconcile();
+    const counts = await db.countByStatus();
+    res.json({ ok: true, cleaned, counts });
+  } catch (err) {
+    console.error("[api] Reconcile failed:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Drain idle instances from the pool
 app.post("/api/pool/drain", requireAuth, async (req, res) => {
   try {

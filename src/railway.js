@@ -91,3 +91,18 @@ export async function deleteService(serviceId) {
     { id: serviceId }
   );
 }
+
+// Check if a service still exists on Railway. Returns { id, name } or null.
+export async function getServiceInfo(serviceId) {
+  try {
+    const data = await gql(
+      `query($id: String!) {
+        service(id: $id) { id name }
+      }`,
+      { id: serviceId }
+    );
+    return data.service || null;
+  } catch {
+    return null;
+  }
+}
